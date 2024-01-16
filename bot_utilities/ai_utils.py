@@ -8,18 +8,58 @@ import random
 import asyncio
 from urllib.parse import quote
 from bot_utilities.config_loader import load_current_language, config
-from openai import AsyncOpenAI
 import os
-from dotenv import load_dotenv
+import openai
+from dotenv import load_dotenv, find_dotenv
+
+from langchain.vectorstores import FAISS
+from langchain.embeddings.openai import OpenAIEmbeddings
+import re
+import requests
+
+SCRYFALL_API = "https://api.scryfall.com/cards/named?fuzzy="
 
 load_dotenv()
 current_language = load_current_language()
 internet_access = config['INTERNET_ACCESS']
+DB_FAISS_PATH = 'vectorstore/MagicCompRules'
 
-openai_client = AsyncOpenAI(
+openai_client = openai.AsyncOpenAI(
     api_key = os.getenv('CHIMERA_GPT_KEY'),
     base_url = "https://api.naga.ac/v1"
 )
+
+def contains_mtg_card(input_string):
+    pattern = re.compile(r'\[\[([^\]]*)\]\]')
+    matches = pattern.findall(input_string)
+
+    if matches:
+        return matches
+    else:
+        return None
+def retrieve_mtg_rules(query):
+    embeddings = OpenAIEmbeddings()
+    db = FAISS.load_local(DB_FAISS_PATH, embeddings)
+    similar_response = db.similarity_search(query, k=5)
+
+    page_contents_array = [doc.page_content for doc in similar_response]
+    # print(page_contents_array)
+    return page_contents_array
+
+def fetch_mtg_card(card_name):
+    res = requests.get(SCRYFALL_API + card_name)
+    if res.status_code == 200:
+        data = res.json()
+        print(data)
+        card_info = {
+            "name": data['name'],
+            "mana_cost": data['mana_cost'],
+            "type_line": data['type_line'],
+            "oracle_text": data['oracle_text']
+        }
+        return card_info
+    else:
+        return f"Error fetching {card_name}"
 
 async def sdxl(prompt):
     response = await openai_client.images.generate(
@@ -81,8 +121,42 @@ async def search(prompt):
 async def fetch_models():
     models = await openai_client.models.list()
     return models
-    
+
 async def generate_response(instructions, search, history):
+    #TODO: overwrite instructions
+    #1. Fetch vector DB
+    #2. Similarity search DB for relevant data
+    # print(history)
+    latest_user_message = history[-1]["content"]
+    if "rq:" in latest_user_message.lower():
+        rulings = retrieve_mtg_rules(latest_user_message)
+        card_data = []
+        if contains_mtg_card(latest_user_message) is not None:
+            cards = contains_mtg_card(latest_user_message)
+            for card in cards:
+                card_data.append(fetch_mtg_card(card))
+        #3. Create message template with data
+        instructions = f"""
+        You are a Magic: the Gathering judge whose purpose is to answer user queries related to Magic: the Gathering.
+    
+        How to behave:
+        - Only respond to user messages which are related to the game of Magic: the Gathering
+        - Answer any queries users may have related to Magic: the Gathering
+        - Answer any queries regarding rulings and in-game interactions between Magic: the Gathering cards
+        - You should always reference official game rules whenever possible, which are provided below
+        - If unsure, tell the user that you cannot provide an accurate answer
+    
+        Here's a list of relevant offical game rules:
+        {rulings}
+        
+        Here's the relevant card data:
+        {card_data}
+        
+        Please answer the user's question to the best of your ability
+    
+        User Question:
+        {latest_user_message}
+        """
     search_results = search if search is not None else "Search feature is disabled"
     messages = [
             {"role": "system", "name": "instructions", "content": instructions},
