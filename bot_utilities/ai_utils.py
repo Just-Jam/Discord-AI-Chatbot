@@ -50,12 +50,22 @@ def fetch_mtg_card(card_name):
     res = requests.get(SCRYFALL_API + card_name)
     if res.status_code == 200:
         data = res.json()
-        print(data)
+        # fetch relevant rulings
+        rulings = []
+        try:
+            rulings_res = requests.get(data['rulings_uri'])
+            rulings_data = rulings_res.json()
+            print(rulings_data)
+            rulings = [entry["comment"] for entry in rulings_data["data"]]
+        except:
+            print("Error fetching rulings")
+
         card_info = {
             "name": data['name'],
             "mana_cost": data['mana_cost'],
             "type_line": data['type_line'],
-            "oracle_text": data['oracle_text']
+            "oracle_text": data['oracle_text'],
+            "rules": rulings
         }
         return card_info
     else:
@@ -152,7 +162,7 @@ async def generate_response(instructions, search, history):
         Here's the relevant card data:
         {card_data}
         
-        Please answer the user's question to the best of your ability
+        Please answer the user's question to the best of your ability. Always prioritize using rulings from card data when relevant.
     
         User Question:
         {latest_user_message}
