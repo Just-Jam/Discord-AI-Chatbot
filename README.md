@@ -1,6 +1,8 @@
 # Discord AI Chatbot 🤖
 #### Your Discord AI Companion!
 
+Vector Embedding from https://github.com/Just-Jam/vector-embedding 
+
 <div align="center">
   <a href="https://discord.gg/6MT3CZauT8">
     <img src="https://discordapp.com/api/guilds/1110950079390547968/widget.png?style=banner2">
