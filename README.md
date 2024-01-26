@@ -2,6 +2,9 @@
 #### Your Discord AI Companion!
 
 Vector Embedding from https://github.com/Just-Jam/vector-embedding 
+Example implementation of knowledge embedding:
+![image](https://github.com/Just-Jam/Discord-AI-Chatbot/assets/46835173/afa02764-77dc-468e-bcfb-830309cc44b8)
+
 
 <div align="center">
   <a href="https://discord.gg/6MT3CZauT8">
